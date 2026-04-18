@@ -70,7 +70,8 @@ def fetch_stock():
 
             conn.commit()
 
-            print(symbol, "Inserted into DB")
+            rsi = calculate_rsi(symbol)  # Calculate RSI after inserting data
+            print(symbol, "Inserted into DB with RSI:", rsi)
 
         except Exception as e:
 

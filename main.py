@@ -1,3 +1,4 @@
+import requests
 from fastapi import FastAPI
 import mysql.connector
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,8 +49,20 @@ def get_history(symbol: str = "RELIANCE.NS"):
 
     return rows
 
+@app.get("/real-time-price")
+def get_real_time_price(symbol: str = "RELIANCE.NS"):
+    url = f"https://api.example.com/stock/{symbol}/price"  # Replace with actual API URL
+    response = requests.get(url)
+    data = response.json()
+    return {
+        "symbol": symbol,
+        "real_time_price": data['price']
+    }
+
 @app.get("/predict")
 def predict(symbol: str = "RELIANCE.NS"):
+    predicted = predict_price(symbol)
+    rsi = calculate_rsi(symbol)  # Call the new RSI calculation function
 
     predicted = predict_price(symbol)
 
