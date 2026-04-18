@@ -1,4 +1,5 @@
-from apscheduler.schedulers.background import BackgroundScheduler
+content = open('scheduler_test.py', 'w')
+content.write("""from apscheduler.schedulers.background import BackgroundScheduler
 import yfinance as yf
 import time
 import mysql.connector
@@ -48,8 +49,8 @@ def fetch_stock():
 
             ts = datetime.now()
             cursor.execute(
-                """INSERT INTO stock_data (symbol, timestamp, price, ma5, rsi, open, high, low)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                \"\"\"INSERT INTO stock_data (symbol, timestamp, price, ma5, rsi, open, high, low)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)\"\"\",
                 (symbol, ts, latest_price, ma5, latest_rsi, latest_open, latest_high, latest_low)
             )
             conn.commit()
@@ -65,3 +66,6 @@ print("Scheduler started...")
 
 while True:
     time.sleep(1)
+""")
+content.close()
+print("Done!")
