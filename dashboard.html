@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Stock Dashboard</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Annotation Plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+
+<style>
+
+body{
+    font-family: Arial;
+    margin:40px;
+}
+
+#signalBox{
+    font-size:22px;
+    font-weight:bold;
+}
+
+#explanationBox{
+    max-width:800px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>📈 Real-Time Stock Price Dashboard</h2>
+
+<h3 id="signalBox">Signal: Loading...</h3>
+
+<h3 id="predictionBox">Prediction loading...</h3>
+
+<p id="explanationBox">Explanation will appear here</p>
+
+<label>Select Stock:</label>
+
+<select id="stockSelect" onchange="fetchData()">
+<option value="RELIANCE.NS">Reliance</option>
+<option value="TCS.NS">TCS</option>
+<option value="INFY.NS">Infosys</option>
+<option value="HDFCBANK.NS">HDFC Bank</option>
+</select>
+
+<br><br>
+
+<canvas id="myChart" width="900" height="400"></canvas>
+
+<script>
+
+let chart;
+
+async function fetchData(){
+
+try{
+
+const stock = document.getElementById("stockSelect").value;
+
+const response = await fetch(
+"http://127.0.0.1:8000/history?symbol=" + stock + "&t=" + new Date().getTime()
+);
+
+const data = await response.json();
+
+if(!data || data.length===0){
+    console.log("No data returned");
+    return;
+}
+
+data.reverse();
+
+const labels = data.map(d=>d.timestamp);
+const prices = data.map(d=>d.price);
+const ma = data.map(d=>d.ma5);
+const rsi = data.map(d=>d.rsi);
+
+const latestRSI = rsi[rsi.length-1];
+
+const pred = await fetch(
+"http://127.0.0.1:8000/predict?symbol=" + stock
+);
+
+const pdata = await pred.json();
+
+document.getElementById("predictionBox").innerText =
+"Predicted Next Price: " +
+(Number(pdata.predicted_price || 0)).toFixed(2);
+
+let signal="HOLD";
+
+if(latestRSI < 30) signal="BUY";
+else if(latestRSI > 70) signal="SELL";
+
+const signalBox=document.getElementById("signalBox");
+
+signalBox.innerText="Signal: "+signal;
+
+if(signal==="BUY") signalBox.style.color="green";
+else if(signal==="SELL") signalBox.style.color="red";
+else signalBox.style.color="orange";
+
+
+/* Explanation */
+
+let explanation="";
+
+if(latestRSI<30){
+
+explanation="RSI is below 30 which means the stock is oversold. A potential upward reversal may occur.";
+
+}
+else if(latestRSI>70){
+
+explanation="RSI is above 70 which means the stock is overbought. Price correction may happen.";
+
+}
+else{
+
+explanation="RSI is between 30 and 70 indicating balanced buying and selling pressure.";
+
+}
+
+document.getElementById("explanationBox").innerText=explanation;
+
+
+/* Destroy old chart */
+
+if(chart){
+chart.destroy();
+}
+
+
+/* Create chart */
+
+const ctx=document.getElementById("myChart").getContext("2d");
+
+chart=new Chart(ctx,{
+
+type:"line",
+
+data:{
+labels:labels,
+
+datasets:[
+
+{
+label:"Price",
+data:prices,
+borderColor:"blue",
+borderWidth:2,
+yAxisID:"priceAxis"
+},
+
+{
+label:"MA5",
+data:ma,
+borderColor:"red",
+borderWidth:2,
+yAxisID:"priceAxis"
+},
+
+{
+label:"RSI",
+data:rsi,
+borderColor:"orange",
+borderWidth:2,
+yAxisID:"rsiAxis"
+}
+
+]
+
+},
+
+options:{
+
+responsive:true,
+
+scales:{
+
+priceAxis:{
+type:"linear",
+position:"left",
+title:{display:true,text:"Price"}
+},
+
+rsiAxis:{
+type:"linear",
+position:"right",
+min:0,
+max:100,
+title:{display:true,text:"RSI"}
+}
+
+},
+
+plugins:{
+
+annotation:{
+
+annotations:{
+
+overbought:{
+type:"line",
+yMin:70,
+yMax:70,
+borderColor:"red",
+borderWidth:2,
+yScaleID:"rsiAxis",
+label:{enabled:true,content:"Overbought (70)"}
+},
+
+oversold:{
+type:"line",
+yMin:30,
+yMax:30,
+borderColor:"green",
+borderWidth:2,
+yScaleID:"rsiAxis",
+label:{enabled:true,content:"Oversold (30)"}
+}
+
+}
+
+}
+
+}
+
+}
+
+});
+
+}
+catch(err){
+
+console.log("Error loading chart",err);
+
+}
+
+}
+
+fetchData();
+
+setInterval(fetchData,10000);
+
+</script>
+
+</body>
+
+</html>
