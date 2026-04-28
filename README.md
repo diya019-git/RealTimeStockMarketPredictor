@@ -64,18 +64,19 @@ A full-stack AI-powered stock market application for Indian NSE markets that com
 ---
 
 ## 📁 Project Structure
-RealTimeStockMarketPredictor/
-├── dashboard.py          # Streamlit frontend (4-tab dashboard)
-├── main.py               # FastAPI REST backend
-├── predict_model.py      # LSTM neural network model
-├── sentiment.py          # News sentiment analysis
-├── backtest.py           # Strategy backtesting engine
-├── combined_signal.py    # LSTM + Sentiment fusion
-├── scheduler.py          # Real-time data scheduler
-├── db_setup.py           # MySQL database setup
-├── requirements.txt      # Python dependencies
-├── .env                  # Environment variables (not pushed)
-└── README.md             # Project documentation
+
+    RealTimeStockMarketPredictor/
+    ├── dashboard.py          → Streamlit frontend (4-tab dashboard)
+    ├── main.py               → FastAPI REST backend
+    ├── predict_model.py      → LSTM neural network model
+    ├── sentiment.py          → News sentiment analysis
+    ├── backtest.py           → Strategy backtesting engine
+    ├── combined_signal.py    → LSTM + Sentiment fusion
+    ├── scheduler.py          → Real-time data scheduler
+    ├── db_setup.py           → MySQL database setup
+    ├── requirements.txt      → Python dependencies
+    ├── .env                  → Environment variables (not pushed)
+    └── README.md             → Project documentation
 ---
 
 ## ⚙️ Installation & Setup
@@ -171,7 +172,7 @@ streamlit run dashboard.py
 
 ## 👨‍💻 Author
 
-Built with ❤️ as a final year project demonstrating real-world applications of:
+Built with ❤️ by Diya Gupta as a final year project demonstrating real-world applications of:
 - Deep Learning (LSTM Neural Networks)
 - Natural Language Processing (Sentiment Analysis)
 - Financial Engineering (Technical Indicators + Backtesting)
