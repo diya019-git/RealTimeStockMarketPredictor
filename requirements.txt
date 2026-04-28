@@ -58,7 +58,7 @@ Flask-Migrate==4.1.0
 Flask-MySQLdb==2.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-Uploads==0.2.1
-flatbuffers==25.2.10
+flatbuffers>=25.9.23
 fonttools==4.59.1
 frozendict==2.4.7
 fsspec==2025.9.0
@@ -140,7 +140,7 @@ pillow==10.4.0
 platformdirs==4.9.2
 prompt_toolkit==3.0.50
 proto-plus==1.26.1
-protobuf==5.28.2
+protobuf==6.31.1
 pure_eval==0.2.3
 py-key-value-aio==0.4.4
 pyasn1==0.6.1

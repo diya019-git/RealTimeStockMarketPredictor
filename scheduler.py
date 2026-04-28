@@ -14,7 +14,31 @@ cursor = conn.cursor()
 
 stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]
 
+def is_market_open():
+    from datetime import datetime
+    import pytz
+    
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.now(ist)
+    
+    # Monday=0, Sunday=6
+    if now.weekday() >= 5:  # Saturday or Sunday
+        print(f"Market closed — Weekend ({now.strftime('%A')})")
+        return False
+    
+    market_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    
+    if market_open <= now <= market_close:
+        return True
+    else:
+        print(f"Market closed — Outside trading hours ({now.strftime('%H:%M')} IST)")
+        return False
+
 def fetch_stock():
+    if not is_market_open():
+        return
+
     for symbol in stocks:
         try:
             stock = yf.Ticker(symbol)
@@ -22,30 +46,24 @@ def fetch_stock():
             if data is None or data.empty:
                 print("No data received for", symbol)
                 continue
-
             latest = data.iloc[-1]
             latest_open  = float(latest['Open'])
             latest_high  = float(latest['High'])
             latest_low   = float(latest['Low'])
             latest_price = float(latest['Close'])
-
             close = data['Close']
             ma5 = float(close.tail(5).mean())
-
             delta = close.diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs))
             latest_rsi = float(rsi.iloc[-1])
-
             print(f"{symbol} | O:{latest_open:.2f} H:{latest_high:.2f} L:{latest_low:.2f} C:{latest_price:.2f} | RSI:{latest_rsi:.2f}")
-
             if latest_rsi > 70:
                 print(f"{symbol} Overbought")
             elif latest_rsi < 30:
                 print(f"{symbol} Oversold")
-
             ts = datetime.now()
             cursor.execute(
                 """INSERT INTO stock_data (symbol, timestamp, price, ma5, rsi, open, high, low)
@@ -54,14 +72,13 @@ def fetch_stock():
             )
             conn.commit()
             print(f"{symbol} Inserted into DB")
-
         except Exception as e:
             print(f"Error fetching {symbol}: {e}")
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(fetch_stock, 'interval', seconds=30)
-scheduler.start()
-print("Scheduler started...")
-
-while True:
-    time.sleep(1)
+if __name__ == "__main__":
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(fetch_stock, 'interval', seconds=30)
+    scheduler.start()
+    print("Scheduler started...")
+    while True:
+        time.sleep(1)

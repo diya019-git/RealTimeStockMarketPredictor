@@ -1,78 +1,89 @@
-from apscheduler.schedulers.background import BackgroundScheduler
-import yfinance as yf
-import time
-import mysql.connector
-from datetime import datetime
+import requests
+from textblob import TextBlob
+from datetime import datetime, timedelta
 
-# MySQL connection
-conn = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="chiragsql@2002",
-    database="stock_project"
-)
-cursor = conn.cursor()
+NEWS_API_KEY = "7394dd10e60441c9b4a30d21e9584389"
 
-# Stocks to track
-stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]
+SYMBOL_TO_NAME = {
+    "RELIANCE.NS": "Reliance Industries",
+    "TCS.NS": "Tata Consultancy Services",
+    "INFY.NS": "Infosys",
+    "HDFCBANK.NS": "HDFC Bank"
+}
 
-def fetch_stock():
-    for symbol in stocks:
-        try:
-            stock = yf.Ticker(symbol)
-            data = stock.history(period="1d", interval="1m")
-            if data is None or data.empty:
-                print("No data received for", symbol)
-                continue
+def get_sentiment(symbol, num_articles=10):
+    company_name = SYMBOL_TO_NAME.get(symbol, symbol)
 
-            # OHLC + Close
-            latest = data.iloc[-1]
-            latest_open  = float(latest['Open'])
-            latest_high  = float(latest['High'])
-            latest_low   = float(latest['Low'])
-            latest_price = float(latest['Close'])  # Close = price
+    url = "https://newsapi.org/v2/everything"
+    params = {
+        "q": company_name,
+        "apiKey": NEWS_API_KEY,
+        "language": "en",
+        "sortBy": "publishedAt",
+        "pageSize": num_articles,
+        "from": (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    }
 
-            close = data['Close']
+    response = requests.get(url, params=params)
+    data = response.json()
 
-            # Moving Average
-            ma5 = float(close.tail(5).mean())
+    if data.get("status") != "ok" or not data.get("articles"):
+        return {
+            "symbol": symbol,
+            "company": company_name,
+            "error": "No news found",
+            "articles": []
+        }
 
-            # RSI Calculation
-            delta = close.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs))
-            latest_rsi = float(rsi.iloc[-1])
+    articles = []
+    total_polarity = 0
 
-            print(f"{symbol} | O:{latest_open:.2f} H:{latest_high:.2f} L:{latest_low:.2f} C:{latest_price:.2f} | RSI:{latest_rsi:.2f}")
+    for article in data["articles"]:
+        headline = article.get("title", "")
+        description = article.get("description", "") or ""
 
-            # Alerts
-            if latest_rsi > 70:
-                print(f"{symbol} 🚨 Overbought")
-            elif latest_rsi < 30:
-                print(f"{symbol} 🚨 Oversold")
+        text = headline + " " + description
+        blob = TextBlob(text)
+        polarity = round(blob.sentiment.polarity, 4)
+        subjectivity = round(blob.sentiment.subjectivity, 4)
 
-            ts = datetime.now()
-            cursor.execute(
-                """
-                INSERT INTO stock_data (symbol, timestamp, price, ma5, rsi, open, high, low)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (symbol, ts, latest_price, ma5, latest_rsi, latest_open, latest_high, latest_low)
-            )
-            conn.commit()
-            print(f"{symbol} ✅ Inserted into DB")
+        if polarity > 0.1:
+            sentiment_label = "Positive 🟢"
+        elif polarity < -0.1:
+            sentiment_label = "Negative 🔴"
+        else:
+            sentiment_label = "Neutral 🟡"
 
-        except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
+        total_polarity += polarity
 
-# Scheduler
-scheduler = BackgroundScheduler()
-scheduler.add_job(fetch_stock, 'interval', seconds=30)
-scheduler.start()
-print("Scheduler started...")
+        articles.append({
+            "headline": headline,
+            "source": article.get("source", {}).get("name", "Unknown"),
+            "published_at": article.get("publishedAt", "")[:10],
+            "url": article.get("url", ""),
+            "polarity": polarity,
+            "subjectivity": subjectivity,
+            "sentiment": sentiment_label
+        })
 
-# Keep running
-while True:
-    time.sleep(1)
+    avg_polarity = round(total_polarity / len(articles), 4)
+
+    if avg_polarity > 0.1:
+        overall = "Bullish 🟢"
+        recommendation = "Positive news sentiment — may support price rise"
+    elif avg_polarity < -0.1:
+        overall = "Bearish 🔴"
+        recommendation = "Negative news sentiment — may pressure price down"
+    else:
+        overall = "Neutral 🟡"
+        recommendation = "Mixed sentiment — no strong directional signal"
+
+    return {
+        "symbol": symbol,
+        "company": company_name,
+        "overall_sentiment": overall,
+        "average_polarity": avg_polarity,
+        "recommendation": recommendation,
+        "total_articles_analyzed": len(articles),
+        "articles": articles
+    }
