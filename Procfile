@@ -1,0 +1,1 @@
+web: streamlit run dashboard_cloud.py --server.port=$PORT --server.address=0.0.0.0

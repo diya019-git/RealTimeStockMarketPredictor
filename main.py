@@ -2,10 +2,18 @@ import requests
 from fastapi import FastAPI
 import mysql.connector
 from fastapi.middleware.cors import CORSMiddleware
-from predict_model import predict_price, calculate_rsi
 from backtest import run_backtest
 from sentiment import get_sentiment
-from combined_signal import get_combined_signal
+try:
+    from combined_signal import get_combined_signal
+    COMBINED_AVAILABLE = True
+except ImportError:
+    COMBINED_AVAILABLE = False
+try:
+    from predict_model import predict_price, calculate_rsi
+    LSTM_AVAILABLE = True
+except ImportError:
+    LSTM_AVAILABLE = False
 
 app = FastAPI()
 
@@ -66,6 +74,8 @@ def get_real_time_price(symbol: str = "RELIANCE.NS"):
 # LSTM Predict + RSI
 @app.get("/predict")
 def predict(symbol: str = "RELIANCE.NS"):
+    if not LSTM_AVAILABLE:
+        return {"error": "LSTM not available on this server"}
     predicted = predict_price(symbol)
     rsi = calculate_rsi(symbol)
 
@@ -118,5 +128,7 @@ def sentiment(symbol: str = "INFY.NS"):
 
 @app.get("/combined-signal")
 def combined_signal(symbol: str = "INFY.NS"):
+    if not COMBINED_AVAILABLE:
+        return {"error": "Combined signal not available on this server"}
     result = get_combined_signal(symbol)
     return result
