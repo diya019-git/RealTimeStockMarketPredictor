@@ -1,6 +1,5 @@
-apscheduler
+APScheduler==3.11.2
 fastapi==0.133.0
-keras==3.14.0
 mysql-connector-python==9.2.0
 numpy==2.3.2
 pandas==2.3.2
@@ -10,10 +9,9 @@ pytz==2025.2
 requests==2.32.2
 scikit-learn==1.8.0
 streamlit==1.56.0
-tensorflow==2.21.0
 textblob==0.20.0
 uvicorn==0.41.0
 yfinance==1.2.0
 protobuf==6.31.1
 flatbuffers==25.12.19
-streamlit-autorefresh==0.1.0
+streamlit-autorefresh==1.0.1
