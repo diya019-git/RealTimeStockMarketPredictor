@@ -11,7 +11,8 @@ load_dotenv()
 st.set_page_config(
     page_title="Stock Market AI Dashboard",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ---------- CUSTOM CSS ----------
@@ -41,15 +42,18 @@ st.markdown("""
         background-color: #2d3250 !important;
         color: #ffffff !important;
     }
+    div[data-testid="stSidebarContent"] {
+        background-color: #1e2130;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------- DB CONFIG ----------
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "sql12.freesqldatabase.com"),
-    "user": os.getenv("DB_USER", "sql12824704"),
-    "password": os.getenv("DB_PASSWORD", "B9Bt85gVs2"),
-    "database": os.getenv("DB_NAME", "sql12824704"),
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT", "3306"))
 }
 
@@ -59,40 +63,41 @@ def get_history(symbol, limit=100, ohlc_only=False):
         query = """
             SELECT timestamp, price, ma5, rsi, open, high, low FROM stock_data
             WHERE symbol=%s AND open IS NOT NULL
-            ORDER BY id ASC LIMIT %s
+            ORDER BY id DESC LIMIT %s
         """
     else:
         query = """
             SELECT timestamp, price, ma5, rsi, open, high, low FROM stock_data
-            WHERE symbol=%s ORDER BY id ASC LIMIT %s
+            WHERE symbol=%s ORDER BY id DESC LIMIT %s
         """
     df = pd.read_sql(query, conn, params=(symbol, limit))
     conn.close()
+    df = df.iloc[::-1].reset_index(drop=True)
     return df
 
-# ---------- HEADER ----------
-st.markdown("# 📈 Real-Time Stock Market Dashboard")
-st.markdown("Live prices · RSI signals · News sentiment · Strategy backtesting")
-st.markdown("---")
-
-# ---------- CONTROLS ROW ----------
-ctrl1, ctrl2, ctrl3 = st.columns([2, 2, 1])
-with ctrl1:
+# ---------- SIDEBAR ----------
+with st.sidebar:
+    st.markdown("## 📈 Stock Market AI")
+    st.markdown("---")
     symbol = st.selectbox(
         "🔍 Select Stock",
         ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]
     )
-with ctrl2:
     limit = st.slider("📊 Data Points", min_value=20, max_value=300, value=100)
-with ctrl3:
-    st.markdown("**📅 Market Hours**")
-    st.caption("Mon–Fri 9:15AM–3:30PM IST")
+    st.markdown("---")
+    st.markdown("**📅 NSE Market Hours**")
+    st.caption("Mon–Fri: 9:15 AM – 3:30 PM IST")
+    st.markdown("---")
+    st.info("🤖 LSTM Predictions available in local version only (requires 2GB+ RAM)")
 
+# ---------- HEADER ----------
+st.markdown("# 📈 Real-Time Stock Market Dashboard")
+st.markdown(f"Tracking **{symbol}** — Live prices · RSI signals · Sentiment analysis · Backtesting")
 st.markdown("---")
 
 # ---------- FETCH DATA ----------
 df = get_history(symbol, limit)
-df_ohlc = get_history(symbol, 200, ohlc_only=True)
+df_ohlc = get_history(symbol, 100, ohlc_only=True)
 
 if df.empty:
     st.error("No data found.")
@@ -108,7 +113,7 @@ latest_ma5 = df['ma5'].iloc[-1]
 price_change = df['price'].iloc[-1] - df['price'].iloc[0]
 price_change_pct = (price_change / df['price'].iloc[0]) * 100
 
-# ---------- METRICS ROW ----------
+# ---------- GLOBAL METRICS ROW ----------
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("💰 Latest Price", f"₹{latest_price:.2f}",
           f"{price_change:+.2f} ({price_change_pct:+.2f}%)")
@@ -204,19 +209,24 @@ with tab1:
 # ==================== TAB 2: NEWS SENTIMENT ====================
 with tab2:
     st.subheader("📰 News Sentiment Analysis")
-    st.caption("NLP analysis of latest financial news using TextBlob")
+    st.caption("NLP analysis of latest financial news using TextBlob sentiment scoring")
 
     if st.button("🔍 Analyze News Sentiment", type="primary"):
         from sentiment import get_sentiment
         with st.spinner("Fetching and analyzing news headlines..."):
             result = get_sentiment(symbol)
+        st.session_state['sentiment_result'] = result
+        st.session_state['sentiment_symbol'] = symbol
 
+    if 'sentiment_result' in st.session_state and st.session_state.get('sentiment_symbol') == symbol:
+        result = st.session_state['sentiment_result']
         if "error" in result:
             st.error(result["error"])
         else:
             s1, s2, s3 = st.columns(3)
             s1.metric("Overall Sentiment", result["overall_sentiment"])
-            s2.metric("Avg Polarity", result["average_polarity"])
+            s2.metric("Avg Polarity", result["average_polarity"],
+                      help="-1 = very negative, +1 = very positive")
             s3.metric("Articles Analyzed", result["total_articles_analyzed"])
 
             avg = result["average_polarity"]
@@ -226,6 +236,8 @@ with tab2:
                 st.error(f"💡 {result['recommendation']}")
             else:
                 st.warning(f"💡 {result['recommendation']}")
+
+            st.markdown("---")
 
             articles = result["articles"]
             headlines = [a["headline"][:50] + "..." for a in articles]
@@ -319,5 +331,42 @@ with tab3:
                     trade_df.style.apply(highlight_trades, axis=1),
                     use_container_width=True
                 )
+
+                df_bt = get_history(bt_symbol, 300)
+                if not df_bt.empty:
+                    df_bt['timestamp'] = pd.to_datetime(df_bt['timestamp'])
+                    fig_bt = go.Figure()
+                    fig_bt.add_trace(go.Scatter(
+                        x=df_bt['timestamp'], y=df_bt['price'],
+                        name='Price', line=dict(color='#00b4d8', width=2)
+                    ))
+                    buys = [t for t in result['trade_log'] if t['type'] == 'BUY']
+                    sells = [t for t in result['trade_log'] if 'SELL' in t['type']]
+                    if buys:
+                        fig_bt.add_trace(go.Scatter(
+                            x=[b['timestamp'] for b in buys],
+                            y=[b['price'] for b in buys],
+                            name='BUY', mode='markers',
+                            marker=dict(color='#26a69a', size=12,
+                                        symbol='triangle-up')
+                        ))
+                    if sells:
+                        fig_bt.add_trace(go.Scatter(
+                            x=[s['timestamp'] for s in sells],
+                            y=[s['price'] for s in sells],
+                            name='SELL', mode='markers',
+                            marker=dict(color='#ef5350', size=12,
+                                        symbol='triangle-down')
+                        ))
+                    fig_bt.update_layout(
+                        height=380,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
+                        yaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02),
+                        margin=dict(l=0, r=0, t=10, b=0)
+                    )
+                    st.plotly_chart(fig_bt, use_container_width=True)
             else:
                 st.warning("No trades executed. Try widening the RSI thresholds.")
