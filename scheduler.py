@@ -42,7 +42,7 @@ def fetch_stock():
     for symbol in stocks:
         try:
             stock = yf.Ticker(symbol)
-            data = stock.history(period="1d", interval="1m")
+            data = stock.history(period="5d", interval="5m")
             if data is None or data.empty:
                 print("No data received for", symbol)
                 continue

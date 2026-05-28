@@ -2,6 +2,11 @@ import streamlit as st
 import mysql.connector
 import pandas as pd
 import plotly.graph_objects as go
+from streamlit_autorefresh import st_autorefresh
+from combined_signal import get_combined_signal
+
+# Auto refresh every 30 seconds
+st_autorefresh(interval=120000, key="datarefresh")
 
 # ---------- PAGE CONFIG ----------
 st.set_page_config(
@@ -58,15 +63,17 @@ def get_history(symbol, limit=100, ohlc_only=False):
         query = """
             SELECT timestamp, price, ma5, rsi, open, high, low FROM stock_data
             WHERE symbol=%s AND open IS NOT NULL
-            ORDER BY id ASC LIMIT %s
+            ORDER BY id DESC LIMIT %s
         """
     else:
         query = """
             SELECT timestamp, price, ma5, rsi, open, high, low FROM stock_data
-            WHERE symbol=%s ORDER BY id ASC LIMIT %s
+            WHERE symbol=%s ORDER BY id DESC LIMIT %s
         """
     df = pd.read_sql(query, conn, params=(symbol, limit))
     conn.close()
+    # Reverse to get chronological order for charts
+    df = df.iloc[::-1].reset_index(drop=True)
     return df
 
 # ---------- SIDEBAR ----------
@@ -212,11 +219,15 @@ with tab2:
     st.subheader("🧠 AI Combined Signal")
     st.caption("LSTM prediction + News sentiment → unified trading signal")
 
-    if st.button("⚡ Generate Combined Signal", type="primary"):
+    if st.button("⚡ Generate Combined Signal", type="primary", key="combined_btn"):
         from combined_signal import get_combined_signal
         with st.spinner("Running LSTM + Sentiment analysis..."):
             result = get_combined_signal(symbol)
+        st.session_state['combined_result'] = result
+        st.session_state['combined_symbol'] = symbol
 
+    if 'combined_result' in st.session_state and st.session_state.get('combined_symbol') == symbol:
+        result = st.session_state['combined_result']
         if "error" in result:
             st.error(result["error"])
         else:
@@ -234,13 +245,13 @@ with tab2:
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("💰 Current Price", f"₹{result['current_price']}")
             c2.metric("🤖 LSTM Prediction", f"₹{result['predicted_price']}",
-                      delta=f"{result['price_change']:+.2f}")
+                    delta=f"{result['price_change']:+.2f}")
             c3.metric("📈 Direction", result["price_direction"])
             c4.metric("📰 Sentiment", result["news_sentiment"].split(" ")[0])
 
     st.markdown("---")
 
-    # ---------- LSTM PREDICTION ----------
+   # ---------- LSTM PREDICTION ----------
     st.subheader("🔮 LSTM Price Prediction")
     st.caption("2-layer neural network trained on your historical data")
 
@@ -252,13 +263,17 @@ with tab2:
         Optimizer: Adam | Loss: MSE | Trained fresh on each prediction
         """)
     with btn_col:
-        predict_btn = st.button("🔮 Predict Next Price", type="primary", use_container_width=True)
+        predict_btn = st.button("🔮 Predict Next Price", type="primary", use_container_width=True, key="lstm_btn")
 
     if predict_btn:
         from predict_model import predict_price
         with st.spinner("Training LSTM model... ~30 seconds"):
             predicted = predict_price(symbol)
+        st.session_state['lstm_result'] = predicted
+        st.session_state['lstm_symbol'] = symbol
 
+    if 'lstm_result' in st.session_state and st.session_state.get('lstm_symbol') == symbol:
+        predicted = st.session_state['lstm_result']
         if predicted:
             diff = predicted - latest_price
             pct = (diff / latest_price) * 100

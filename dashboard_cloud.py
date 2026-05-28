@@ -92,7 +92,7 @@ st.markdown("---")
 
 # ---------- FETCH DATA ----------
 df = get_history(symbol, limit)
-df_ohlc = get_history(symbol, limit, ohlc_only=True)
+df_ohlc = get_history(symbol, 200, ohlc_only=True)
 
 if df.empty:
     st.error("No data found.")
@@ -105,8 +105,8 @@ if not df_ohlc.empty:
 latest_price = df['price'].iloc[-1]
 latest_rsi = df['rsi'].iloc[-1]
 latest_ma5 = df['ma5'].iloc[-1]
-price_change = df['price'].iloc[-1] - df['price'].iloc[-2]
-price_change_pct = (price_change / df['price'].iloc[-2]) * 100
+price_change = df['price'].iloc[-1] - df['price'].iloc[0]
+price_change_pct = (price_change / df['price'].iloc[0]) * 100
 
 # ---------- METRICS ROW ----------
 m1, m2, m3, m4, m5 = st.columns(5)
